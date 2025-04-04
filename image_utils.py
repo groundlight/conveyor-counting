@@ -19,7 +19,7 @@ def crop_from_image_query(frame: np.ndarray, bbox) -> np.ndarray:
     return frame[y1:y2, x1:x2]
 
 
-def draw_bbox(frame: np.ndarray, bbox, color: tuple) -> np.ndarray:
+def draw_bbox(frame: np.ndarray, bbox, color: tuple) -> None:
     """Draws the bounding box from the first ROI in a Groundlight ImageQuery onto the frame."""
 
     left, top, right, bottom = bbox.left, bbox.top, bbox.right, bbox.bottom
@@ -33,12 +33,7 @@ def draw_bbox(frame: np.ndarray, bbox, color: tuple) -> np.ndarray:
     x2 = int(right * width)
     y2 = int(bottom * height)
 
-    # Draw rectangle on a copy of the frame
-    output = frame.copy()
-    cv2.rectangle(output, (x1, y1), (x2, y2), color=color, thickness=2)
-
-    return output
-
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color=color, thickness=2)
 
 def resize(frame: np.ndarray, max_width: int = None, max_height: int = None) -> np.ndarray:
     if max_width is None and max_height is None:
