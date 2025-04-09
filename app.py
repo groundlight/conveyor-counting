@@ -1,6 +1,5 @@
 import groundlight
 import framegrab
-from imgcat import imgcat
 
 import time
 import logging
@@ -10,6 +9,7 @@ import image_utils as iu
 import object_utils as ou
 import camera as cam
 from timing import PerfTimer, LoopManager
+import yaml
 
 from framegrab_web_server import FrameGrabWebServer
 
@@ -21,6 +21,12 @@ def parse_args():
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         help='Set the logging level'
     )
+    parser.add_argument(
+        '--inference',
+        default=False,
+        help='Run inference on the camera stream',
+    )    
+    
     return parser.parse_args()
 
 def main() -> None:
@@ -32,111 +38,83 @@ def main() -> None:
     logging.basicConfig(level=getattr(logging, args.log_level.upper()))
     logger = logging.getLogger(__name__)
 
-    # POSITION_DETECTOR_ID = 'det_2v99nYk9fXp7vobIx6YliqnH9gP'
-    POSITION_DETECTOR_ID = 'det_2vCD8IJ7iHVoP14RsOjnZiGGjkT'
-    BINARY_DEFECT_DETECTOR_ID = 'det_2v98BBiviD4wSq5eenGnePJv2hH'
-
     logger.info(f'Groundlight Version: {groundlight.__version__}')
     logger.info(f'Framegrab Version: {framegrab.__version__}')
 
-    gl = groundlight.ExperimentalApi(endpoint="http://localhost:30101/")
-    logged_in_user = gl.whoami()
+    
+    yaml_path = 'config.yaml'
+    with open(yaml_path, 'r') as file:
+        config = yaml.safe_load(file)
+    
+    if args.inference:
+        gl = groundlight.ExperimentalApi(endpoint="http://localhost:30101/")
+        logged_in_user = gl.whoami()
+        logger.info(f'Welcome, {logged_in_user}')
+            
+        OBJECT_DETECTOR_IDS = config["detector_ids"]["object_detection"]
+        
+        object_detectors = []
+        object_detector_timers = []
+        for detector_id in OBJECT_DETECTOR_IDS:
+            
+            detector = gl.get_detector(detector_id)
+            object_detectors.append(detector)
+            
+            timer_name = f'{detector.name} Inference'
+            timer = PerfTimer(timer_name, False)
+            object_detector_timers.append(timer)
+            
+        # TODO - add this to config or autogenerate them
+        COLORS = [
+            (0, 255, 0),  # Green
+            (255, 0, 0),  # Blue
+        ]
+    else:
+        logger.info('Inference disabled. Streaming camera only.')
+    
+    MAIN_LOOP_TIME = 1 / 3
 
-    POSITION_DETECTOR = gl.get_detector(POSITION_DETECTOR_ID)
-    BINARY_DEFECT_DETECTOR = gl.get_detector(BINARY_DEFECT_DETECTOR_ID)
-
-    MAIN_LOOP_TIME = 1 / 5
-
-    logger.info(f'Welcome, {logged_in_user}')
-
-    options = {
-            "resolution": {
-                "width": 1920, # 3840,
-                "height": 1080, # 2160,
-            },
-            "crop": {
-                "relative": {
-                    "left": 0.2,
-                    "right": 0.9,
-                }
-            },
-            "num_90_deg_rotations": 2,
-            "is_video": True
-        }
-    config = {
-        "input_type": "generic_usb",
-        "options": options}
-    blocking_grabber = framegrab.FrameGrabber.create_grabber(config, warmup_delay=0.0)
-
-    blocking_grabber.apply_options(options)
-
+    # Connect to the camera and create a threaded framegrabber so we can capture frames more efficiently
+    blocking_grabber = framegrab.FrameGrabber.from_yaml(yaml_path)[0]
     grabber = cam.ThreadedFrameGrabber(blocking_grabber)
 
-    web_server = FrameGrabWebServer('Lid Detector')
+    web_server = FrameGrabWebServer('Object Counter')
     
-    # image_capture_timer = PerfTimer('Image Capture')
-    # display_timer = PerfTimer('Display')
-    od_inference_timer = PerfTimer('Object Detection Inference', False)
-    binary_inference_timer = PerfTimer('Binary Inference', False)
-    # main_loop_timer = PerfTimer('Main Loop')
-
     main_loop_manager = LoopManager('Main Loop', loop_time=MAIN_LOOP_TIME)
     
     logger.info('Starting main loop...')
     while True:
-        # main_loop_timer.start()
         main_loop_manager.start()
         
-        # image_capture_timer.start()
         frames = grabber.grab()
-        # image_capture_timer.stop()
         
         if frames is None:
             time.sleep(1)
             continue
         
         annotated_frame = frames['annotated']
-        object_detection_frame = frames['object_detection']
         
-        od_inference_timer.start()
-        position_iq = gl.ask_ml(POSITION_DETECTOR, object_detection_frame)
-        od_inference_timer.stop()
-        
-        # display_timer.start()
-        rois = [] if position_iq.rois is None else position_iq.rois
-        for roi in rois:
-            bbox = roi.geometry
+        if args.inference:
+            object_detection_frame = frames['object_detection']
             
-            is_fully_onscreen = ou.is_fully_onscreen(bbox)
-            color = (0, 0, 0) if is_fully_onscreen else (255, 255, 255)
-            
-            if is_fully_onscreen:
-                original_frame = frames['original']
-                cropped_frame = iu.crop_image_to_bbox(original_frame, bbox)
+            object_detection_iqs = []
+            for detector, timer  in zip(object_detectors, object_detector_timers):
+                timer.start()
+                iq = gl.ask_ml(detector, object_detection_frame)
+                timer.stop()
+                object_detection_iqs.append(iq)
                 
-                binary_inference_timer.start()
-                defect_iq = gl.ask_ml(BINARY_DEFECT_DETECTOR, cropped_frame)
-                binary_inference_timer.stop()
-                
-                answer = defect_iq.result.label.value
-                confidence = defect_iq.result.confidence
-                if confidence > BINARY_DEFECT_DETECTOR.confidence_threshold:
-                    if answer == "YES":
-                        color = (0, 255, 0)
-                    elif answer == "NO":
-                        color = (0, 0, 255)
-                    else:
-                        color = (0, 255, 255)
-                else:
-                    color = (0, 255, 255)
+            for iq, color in zip(object_detection_iqs, COLORS):
+                rois = [] if iq.rois is None else iq.rois
+                for roi in rois:
+                    bbox = roi.geometry
+                    
+                    if ou.is_fully_onscreen(bbox):
+                        iu.draw_bbox(annotated_frame, bbox, color)
             
-            iu.draw_bbox(annotated_frame, bbox, color)
-
         web_server.show_image(annotated_frame)
-        # display_timer.stop()
         
         main_loop_manager.wait()
-        # main_loop_timer.stop()
 
 if __name__ == "__main__":
     main()
