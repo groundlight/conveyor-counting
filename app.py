@@ -6,13 +6,24 @@ import logging
 import argparse
 
 import image_utils as iu
-import object_utils as ou
+import object_tracking as ot
 import camera as cam
 from timing import PerfTimer, LoopManager
 import yaml
+from enum import Enum
 
 from framegrab_web_server import FrameGrabWebServer
 
+import cv2
+
+class AppMode(str, Enum):
+    VIDEO_ONLY = "VIDEO_ONLY"
+    VIDEO_INFERENCE = "VIDEO_INFERENCE"
+    SNAPSHOT_INFERENCE = "SNAPSHOT_INFERENCE"
+
+    def get_values() -> list[str]:
+        return [value.value for value in AppMode]
+    
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -22,9 +33,10 @@ def parse_args():
         help='Set the logging level'
     )
     parser.add_argument(
-        '--inference',
-        default=False,
-        help='Run inference on the camera stream',
+        '--mode',
+        default=AppMode.get_values()[0],
+        choices=AppMode.get_values(),
+        help='The mode of the application',
     )    
     
     return parser.parse_args()
@@ -40,13 +52,12 @@ def main() -> None:
 
     logger.info(f'Groundlight Version: {groundlight.__version__}')
     logger.info(f'Framegrab Version: {framegrab.__version__}')
-
     
     yaml_path = 'config.yaml'
     with open(yaml_path, 'r') as file:
         config = yaml.safe_load(file)
     
-    if args.inference:
+    if args.mode in (AppMode.VIDEO_INFERENCE, AppMode.SNAPSHOT_INFERENCE):
         gl = groundlight.ExperimentalApi(endpoint="http://localhost:30101/")
         logged_in_user = gl.whoami()
         logger.info(f'Welcome, {logged_in_user}')
@@ -63,16 +74,13 @@ def main() -> None:
             timer_name = f'{detector.name} Inference'
             timer = PerfTimer(timer_name, False)
             object_detector_timers.append(timer)
-            
-        # TODO - add this to config or autogenerate them
-        COLORS = [
-            (0, 255, 0),  # Green
-            (255, 0, 0),  # Blue
-        ]
     else:
         logger.info('Inference disabled. Streaming camera only.')
+        
+    if args.mode == AppMode.VIDEO_INFERENCE:
+        object_tracker = ot.ObjectTracker(0.0, -0.7)
     
-    MAIN_LOOP_TIME = 1 / 3
+    MAIN_LOOP_TIME = 1 / 5
 
     # Connect to the camera and create a threaded framegrabber so we can capture frames more efficiently
     blocking_grabber = framegrab.FrameGrabber.from_yaml(yaml_path)[0]
@@ -82,11 +90,13 @@ def main() -> None:
     
     main_loop_manager = LoopManager('Main Loop', loop_time=MAIN_LOOP_TIME)
     
-    logger.info('Starting main loop...')
     while True:
+        if args.mode == AppMode.SNAPSHOT_INFERENCE:
+            input('Press enter to perform inference: ')
+            
         main_loop_manager.start()
         
-        frames = grabber.grab()
+        frames, timestamp = grabber.grab()
         
         if frames is None:
             time.sleep(1)
@@ -94,23 +104,27 @@ def main() -> None:
         
         annotated_frame = frames['annotated']
         
-        if args.inference:
+        if args.mode in (AppMode.VIDEO_INFERENCE, AppMode.SNAPSHOT_INFERENCE):
             object_detection_frame = frames['object_detection']
             
-            object_detection_iqs = []
-            for detector, timer  in zip(object_detectors, object_detector_timers):
-                timer.start()
+            detector = object_detectors[0]
+            timer = object_detector_timers[0]
+            timer.start()
+            try:
                 iq = gl.ask_ml(detector, object_detection_frame)
-                timer.stop()
-                object_detection_iqs.append(iq)
+            except:
+                logger.error(f'Encountered an error while performing inference', exc_info=True)
                 
-            for iq, color in zip(object_detection_iqs, COLORS):
-                rois = [] if iq.rois is None else iq.rois
-                for roi in rois:
-                    bbox = roi.geometry
-                    
-                    if ou.is_fully_onscreen(bbox):
-                        iu.draw_bbox(annotated_frame, bbox, color)
+            timer.stop()
+            
+            rois = [] if iq.rois is None else iq.rois
+            
+            object_tracker.add_rois(rois, timestamp)
+            object_tracker.annotate_frame(annotated_frame)
+            object_tracker.purge_missing_objects()
+            
+            # scores = [roi.score for roi in rois]    
+            # logger.info(f"Confidence: {iq.result.confidence} | {scores}")
             
         web_server.show_image(annotated_frame)
         
