@@ -2,6 +2,7 @@ import math
 from model import ROI # this is coming from the groundlight module, although it's not in that namespace
 import cv2
 import numpy as np
+from groundlight import ImageQuery
 
 def is_fully_onscreen(bbox) -> bool:
     
@@ -34,9 +35,13 @@ class TrackedObject:
         self.MAX_OBSERVATIONS = 2
         self.observations: list[tuple] = []
         
+        self.first_observation = (roi, timestamp)
+        
         self._needs_purging = False
         
-        self.add_observation(roi, timestamp)
+        self.gl_class = None
+        
+        self.add_observation(*self.first_observation)
         
     def add_observation(self, roi: ROI, timestamp: float) -> None:
         self.observations.append((roi, timestamp))
@@ -58,6 +63,17 @@ class TrackedObject:
         
     def needs_purging(self) -> None:
         return self._needs_purging
+    
+    def distance_traveled(self) -> float:
+        bbox1 = self.first_observation[0].geometry
+        x1 = bbox1.x
+        y1 = bbox1.y
+
+        bbox2 = self.observations[-1][0].geometry
+        x2 = bbox2.x
+        y2 = bbox2.y
+
+        return math.hypot(x2 - x1, y2 - y1)
             
     def estimate_next_position(self, timestamp: float) -> tuple[float, float] | None:
         """
@@ -111,10 +127,14 @@ class ObjectTracker:
         self.EXPECTED_X_VELOCITY = expected_x_velocity
         self.EXPECTED_Y_VELOCITY = expected_y_velocity
         
-        self.DISTANCE_MATCHING_THRESH = 0.15 # normalized screen units
+        self.MIN_DISTANCE_TRAVELED_THRESH = 0.75
+        
+        self.DISTANCE_MATCHING_THRESH = 0.1 # normalized screen units
         self.MAX_TIME_SINCE_LAST_SEEN = 0.5 
         
         self.tracked_objects = []
+        
+        self.object_count = 0
         
     def add_rois(self, rois: list[ROI], timestamp: float) -> None:
         for roi in rois:
@@ -148,6 +168,12 @@ class ObjectTracker:
         for tracked_object in self.tracked_objects:
             if not tracked_object.needs_purging():
                 tracked_objects.append(tracked_object)
+            else:
+                distance_traveled = tracked_object.distance_traveled()
+                
+                if distance_traveled > self.MIN_DISTANCE_TRAVELED_THRESH:
+                    self.object_count += 1
+                
         self.tracked_objects = tracked_objects
         
     def annotate_frame(self, frame: np.ndarray) -> None:
@@ -157,6 +183,17 @@ class ObjectTracker:
         """
         height, width = frame.shape[:2]
         thickness = 2
+        
+        # Draw a solid white rectangle under the text, make it the same size as the text, but with a little margin
+        text = f'Object count: {self.object_count}'
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale, thickness, margin = 1.0, 2, 5
+        org = (10, 30)
+
+        size, baseline = cv2.getTextSize(text, font, scale, thickness)
+        x, y = org
+        cv2.rectangle(frame, (x - margin, y - size[1] - margin), (x + size[0] + margin, y + baseline + margin), (255, 255, 255), -1)
+        cv2.putText(frame, text, org, font, scale, (0, 255, 0), thickness)
 
         for tracked_object in self.tracked_objects:
             
@@ -202,3 +239,36 @@ class ObjectTracker:
             velocity_str = "-" if velocity is None else f"{velocity:.4f}"
             label = f"ID: {tracked_object.idx} | velocity: {velocity_str}"
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            
+    def run(self, iq: ImageQuery, timestamp: float, annotated_frame: np.ndarray) -> None:
+        rois = [] if iq.rois is None else iq.rois
+        self.add_rois(rois, timestamp)
+        self.annotate_frame(annotated_frame)
+        self.purge_missing_objects()
+        
+    def classify(self, frame: np.ndarray) -> None:
+        """ TODO Finish this WIP
+        
+        Multiple choice is not currently supported on edge, so will need to come back to this
+        """
+        
+        # In order make performance, perform no more than n classifications per interaction
+        max_classifications = 3
+        classifications = 0
+        for tracked_object in self.tracked_objects:
+            if tracked_object.gl_class is not None:
+                continue # do not classify if a valid class was already determined
+            
+            current_roi = tracked_object.current_roi()
+            current_bbox = current_roi.geometry
+            
+            # TODO crop to the object's position
+            
+            # TODO classify the object
+            
+            # Count the classification 
+            classifications += 1
+            if classifications == max_classifications:
+                return
+            
+            

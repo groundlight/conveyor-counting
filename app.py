@@ -5,7 +5,6 @@ import time
 import logging
 import argparse
 
-import image_utils as iu
 import object_tracking as ot
 import camera as cam
 from timing import PerfTimer, LoopManager
@@ -13,8 +12,6 @@ import yaml
 from enum import Enum
 
 from framegrab_web_server import FrameGrabWebServer
-
-import cv2
 
 class AppMode(str, Enum):
     VIDEO_ONLY = "VIDEO_ONLY"
@@ -62,29 +59,27 @@ def main() -> None:
         logged_in_user = gl.whoami()
         logger.info(f'Welcome, {logged_in_user}')
             
-        OBJECT_DETECTOR_IDS = config["detector_ids"]["object_detection"]
+        counting_detector_id = config["detector_ids"]["counting"]
+        counting_detector = gl.get_detector(counting_detector_id)
+        counting_timer = PerfTimer("Counting", False)
         
-        object_detectors = []
-        object_detector_timers = []
-        for detector_id in OBJECT_DETECTOR_IDS:
-            
-            detector = gl.get_detector(detector_id)
-            object_detectors.append(detector)
-            
-            timer_name = f'{detector.name} Inference'
-            timer = PerfTimer(timer_name, False)
-            object_detector_timers.append(timer)
+        # Multiple choice is not currently supported
+        # multiple_choice_detector_id = config["detector_ids"]["multiple_choice"]
+        # multiple_choice_detector = gl.get_detector(multiple_choice_detector_id)
+        # counting_timer = PerfTimer("Counting", False)
+        
     else:
         logger.info('Inference disabled. Streaming camera only.')
         
     if args.mode == AppMode.VIDEO_INFERENCE:
-        object_tracker = ot.ObjectTracker(0.0, -0.7)
+        object_tracker = ot.ObjectTracker(0.3, 0.0)
     
-    MAIN_LOOP_TIME = 1 / 5
+    FPS = 5
+    MAIN_LOOP_TIME = 1 / FPS
 
     # Connect to the camera and create a threaded framegrabber so we can capture frames more efficiently
     blocking_grabber = framegrab.FrameGrabber.from_yaml(yaml_path)[0]
-    grabber = cam.ThreadedFrameGrabber(blocking_grabber)
+    grabber = cam.ThreadedFrameGrabber(blocking_grabber, FPS)
 
     web_server = FrameGrabWebServer('Object Counter')
     
@@ -107,28 +102,32 @@ def main() -> None:
         if args.mode in (AppMode.VIDEO_INFERENCE, AppMode.SNAPSHOT_INFERENCE):
             object_detection_frame = frames['object_detection']
             
-            detector = object_detectors[0]
-            timer = object_detector_timers[0]
-            timer.start()
+            counting_timer.start()
             try:
-                iq = gl.ask_ml(detector, object_detection_frame)
-            except:
-                logger.error(f'Encountered an error while performing inference', exc_info=True)
+                iq = gl.ask_ml(counting_detector, object_detection_frame)
+            except KeyboardInterrupt:
+                break
+            except Exception:
+                logger.error(f'Encountered an unexpected error while performing inference', exc_info=True)
+                continue
+            finally:
+                counting_timer.stop()
+            
+            if args.mode == AppMode.VIDEO_INFERENCE:
+                object_tracker.run(iq, timestamp, annotated_frame)
                 
-            timer.stop()
-            
-            rois = [] if iq.rois is None else iq.rois
-            
-            object_tracker.add_rois(rois, timestamp)
-            object_tracker.annotate_frame(annotated_frame)
-            object_tracker.purge_missing_objects()
-            
             # scores = [roi.score for roi in rois]    
             # logger.info(f"Confidence: {iq.result.confidence} | {scores}")
             
         web_server.show_image(annotated_frame)
         
+        # debug_str = None if iq is None else iq.id
+        # debug_str = iq.metadata["is_from_edge"]
+        # debug_str = str(iq)
         main_loop_manager.wait()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Shutting down...")
