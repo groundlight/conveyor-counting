@@ -3,15 +3,67 @@ import numpy as np
 import cv2
 import logging
 import time
+import os
 
 import image_utils as iu
 
 from threading import Thread
+from queue import Queue, Full, Empty
 
 from timing import LoopManager
 
 logger = logging.getLogger(__name__)
-    
+
+class ThreadedVideoWriter:
+    def __init__(self, name: str, resolution: tuple, fps: int) -> None:
+        self.name = name
+        self.resolution = resolution
+        self.fps = fps
+        
+        directory = 'video_output'
+        os.makedirs(directory, exist_ok=True)
+        self.filename = os.path.join(directory, f"{name}.mp4")
+
+        self.queue = Queue(maxsize=10)
+        self.writer = cv2.VideoWriter(
+            filename=self.filename,
+            fourcc=cv2.VideoWriter_fourcc(*'mp4v'),
+            fps=fps,
+            frameSize=resolution,
+        )
+        self.run = False
+        
+        self.thread = Thread(target=self._run_loop, daemon=True)
+
+        self.start()
+
+    def add_frame(self, frame: np.ndarray) -> None:
+        try:
+            self.queue.put_nowait(frame)
+        except Full:
+            logger.error("Video recorder queue full! Dropping frame.")
+
+    def start(self) -> None:
+        self.run = True
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.run = False
+        self.thread.join()
+        self.writer.release()
+        
+        logger.info('Video recording completed.')
+
+    def _run_loop(self) -> None:
+        while self.run or not self.queue.empty():
+            try:
+                frame = self.queue.get(timeout=0.1)
+            except Empty:
+                continue  # No frame to write, loop again
+            
+            time.sleep(0.01)
+            self.writer.write(frame)
+        
 class ThreadedFrameGrabber:
     def __init__(self, grabber: FrameGrabber, fps: int = 10) -> None:
         self._setup_camera(grabber)
@@ -67,12 +119,11 @@ class ThreadedFrameGrabber:
         
     def _resize_in_thread(self, frame: np.ndarray, timestamp: float) -> None:
         def thread() -> None:
-            annotated = iu.resize(frame, max_width=1280)
-            object_detection = iu.resize(annotated, max_width=200)
+            object_detection = iu.resize(frame, max_width=200)
             
             self._frames = {
                 'original': frame,
-                'annotated': annotated,
+                'annotated': frame.copy(),
                 'object_detection': object_detection,
             }
             self.timestamp = timestamp
