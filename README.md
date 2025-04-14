@@ -1,6 +1,6 @@
 # Conveyor Counting
 
-Use the Groundlight Edge Endpoint to count objects as they move across a conveyor belt. 
+A sample application that uses the Groundlight Edge Endpoint to count objects as they move across a conveyor belt. 
 
 <img src="assets/items_on_conveyor.png" alt="Items on Conveyor" width="400">
 
