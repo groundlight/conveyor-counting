@@ -1,17 +1,13 @@
+fps: 5
 detector_ids:
-  object_detection: 
-    - "det_"
-    - "det_"
+  counting: "det_"
 image_sources:
   - id:
-      serial_number: 123456
+      serial_number: abc123
     input_type: generic_usb
     options:
       resolution:
-        width: 3840
-        height: 2160
-      crop:
-        relative:
-          left: 0.05
-          right: 0.9
-      is_video: true # necessary to keep the frame rate high
+        width: 1902 # 3840
+        height: 1080 # 2160
+      is_video: true # necessary to keep the frame rate high, depends on https://github.com/groundlight/framegrab/tree/tim/buffer
+      num_90_deg_rotations: 2
