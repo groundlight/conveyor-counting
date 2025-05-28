@@ -2,7 +2,6 @@ from framegrab import FrameGrabber
 import numpy as np
 import cv2
 import logging
-import time
 
 import image_utils as iu
 
@@ -23,12 +22,10 @@ class ThreadedFrameGrabber:
         
         self._wait_time = 1 / fps
         
-        self.timestamp = 0.0
-        
         self._start()
         
-    def grab(self) -> tuple[dict[str, np.ndarray], float]:
-        return self._frames, self.timestamp
+    def grab(self) -> dict[str, np.ndarray]:
+        return self._frames
     
     def _setup_camera(self, grabber: FrameGrabber) -> None:
         """
@@ -56,9 +53,7 @@ class ThreadedFrameGrabber:
                 camera_loop.start()
                 
                 frame = self._grabber.grab()
-                timestamp = time.perf_counter() # capture the timestamp right after grabbing the frame
-                
-                self._resize_in_thread(frame, timestamp)
+                self._resize_in_thread(frame)
                 
                 camera_loop.wait()
                 
@@ -68,18 +63,15 @@ class ThreadedFrameGrabber:
         t.daemon = True
         t.start()
         
-    def _resize_in_thread(self, frame: np.ndarray, timestamp: float) -> None:
+    def _resize_in_thread(self, frame: np.ndarray) -> None:
         def thread() -> None:
             annotated = iu.resize(frame, max_width=1280)
             object_detection = iu.resize(annotated, max_width=200)
-            
             self._frames = {
                 'original': frame,
                 'annotated': annotated,
                 'object_detection': object_detection,
             }
-            self.timestamp = timestamp
-                
         t = Thread(target=thread)
         t.daemon = True
         t.start()
