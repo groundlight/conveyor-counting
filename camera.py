@@ -1,6 +1,5 @@
 from framegrab import FrameGrabber
 import numpy as np
-import cv2
 import logging
 
 import image_utils as iu
@@ -9,14 +8,13 @@ from threading import Thread
 
 from timing import LoopManager
 
-FPS = 4
+FPS = 10
 CAMERA_LOOP_TIME = 1 / FPS
 
 logger = logging.getLogger(__name__)
     
 class ThreadedFrameGrabber:
     def __init__(self, grabber: FrameGrabber, fps: int = 10) -> None:
-        # self._setup_camera(grabber)
         self._grabber = grabber
         self._frames: dict[str, np.ndarray] = None
         
@@ -26,24 +24,6 @@ class ThreadedFrameGrabber:
         
     def grab(self) -> dict[str, np.ndarray]:
         return self._frames
-    
-    def _setup_camera(self, grabber: FrameGrabber) -> None:
-        """
-        Enable 4K, set a reasonable frame rate, etc.
-        """
-        
-        # MJPG enables 4K on cameras like the logitech brio
-        fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G') 
-        grabber.capture.set(cv2.CAP_PROP_FOURCC, fourcc)
-        
-        fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"Original camera frame rate for {grabber.config['name']}: {fps} FPS")
-        
-        desired_fps = 30
-        grabber.capture.set(cv2.CAP_PROP_FPS, desired_fps)
-        
-        new_fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"New camera frame rate for {grabber.config['name']}: {new_fps} FPS")
     
     def _start(self) -> None:
         def thread() -> None:
@@ -65,7 +45,7 @@ class ThreadedFrameGrabber:
         
     def _resize_in_thread(self, frame: np.ndarray) -> None:
         def thread() -> None:
-            annotated = iu.resize(frame, max_width=1280)
+            annotated = iu.resize(frame, max_width=640)
             object_detection = iu.resize(annotated, max_width=200)
             self._frames = {
                 'original': frame,
