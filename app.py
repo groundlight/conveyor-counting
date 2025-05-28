@@ -70,7 +70,7 @@ def main() -> None:
     FPS = config.get('fps')
     if FPS is None:
         raise ValueError(
-            f'No fps was provided in {yaml_path}. Please provided one. Exiting.'
+            f'No fps was provided in {yaml_path}. Please provide one. Exiting.'
         )
     else:
         logger.info(f'Running at {FPS} frames per second.')
