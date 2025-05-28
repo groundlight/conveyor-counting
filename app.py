@@ -2,144 +2,106 @@ import groundlight
 import framegrab
 from imgcat import imgcat
 
-import time
-import logging
-import argparse
+import math
 
 import image_utils as iu
 import object_utils as ou
 import camera as cam
-from timing import PerfTimer, LoopManager
 
 from framegrab_web_server import FrameGrabWebServer
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--log-level',
-        default='INFO',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        help='Set the logging level'
-    )
-    return parser.parse_args()
+POSITION_DETECTOR_ID = 'det_2v99nYk9fXp7vobIx6YliqnH9gP'
+BINARY_DEFECT_DETECTOR_ID = 'det_2v98BBiviD4wSq5eenGnePJv2hH'
 
-def main() -> None:
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
+
+print(f'Groundlight Version: {groundlight.__version__}')
+print(f'Framegrab Version: {framegrab.__version__}')
+
+gl = groundlight.ExperimentalApi(endpoint="http://localhost:30101/")
+logged_in_user = gl.whoami()
+
+POSITION_DETECTOR = gl.get_detector(POSITION_DETECTOR_ID)
+BINARY_DEFECT_DETECTOR = gl.get_detector(BINARY_DEFECT_DETECTOR_ID)
+
+print(f'Welcome, {logged_in_user}')
+
+options = {
+        "resolution": {
+            "width": 3840,
+            "height": 2160,
+        },
+        "num_90_deg_rotations": 2,
+    }
+config = {
+    "input_type": "generic_usb",
+    "options": options}
+grabber = framegrab.FrameGrabber.create_grabber(config, warmup_delay=0.0)
+cam.enable_4k(grabber)
+
+grabber.apply_options(options)
+
+web_server = FrameGrabWebServer('Lid Detector')
+
+while True:
+    user_input = input(
+        "Enter 'q' to quit. "
+        "Enter 'c' to capture an image."
+        "Enter any other key to capture an image and perform inference: "
+        ).lower()
     
-    args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
-    logger = logging.getLogger(__name__)
-
-    # POSITION_DETECTOR_ID = 'det_2v99nYk9fXp7vobIx6YliqnH9gP'
-    POSITION_DETECTOR_ID = 'det_2vCD8IJ7iHVoP14RsOjnZiGGjkT'
-    BINARY_DEFECT_DETECTOR_ID = 'det_2v98BBiviD4wSq5eenGnePJv2hH'
-
-    logger.info(f'Groundlight Version: {groundlight.__version__}')
-    logger.info(f'Framegrab Version: {framegrab.__version__}')
-
-    gl = groundlight.ExperimentalApi(endpoint="http://localhost:30101/")
-    logged_in_user = gl.whoami()
-
-    POSITION_DETECTOR = gl.get_detector(POSITION_DETECTOR_ID)
-    BINARY_DEFECT_DETECTOR = gl.get_detector(BINARY_DEFECT_DETECTOR_ID)
-
-    MAIN_LOOP_TIME = 1 / 5
-
-    logger.info(f'Welcome, {logged_in_user}')
-
-    options = {
-            "resolution": {
-                "width": 3840,
-                "height": 2160,
-            },
-            "crop": {
-                "relative": {
-                    "left": 0.2,
-                    "right": 0.9,
-                }
-            },
-            "num_90_deg_rotations": 2,
-            "is_video": True
-        }
-    config = {
-        "input_type": "generic_usb",
-        "options": options}
-    blocking_grabber = framegrab.FrameGrabber.create_grabber(config, warmup_delay=0.0)
-
-    blocking_grabber.apply_options(options)
-
-    grabber = cam.ThreadedFrameGrabber(blocking_grabber)
-
-    web_server = FrameGrabWebServer('Lid Detector')
+    if user_input == "q":
+        print('Quitting...')
+        break
     
-    # image_capture_timer = PerfTimer('Image Capture')
-    resizing_timer = PerfTimer('Resizing', False)
-    # display_timer = PerfTimer('Display')
-    od_inference_timer = PerfTimer('Object Detection Inference', False)
-    # main_loop_timer = PerfTimer('Main Loop')
-
-    main_loop_manager = LoopManager('Main Loop', loop_time=MAIN_LOOP_TIME)
+    print('Capturing image...', end='')
+    frame = grabber.grab()
+    print(f'Image captured: {frame.shape}')
     
-    logger.info('Starting main loop...')
-    while True:
-        # main_loop_timer.start()
-        main_loop_manager.start()
-        
-        # image_capture_timer.start()
-        frame = grabber.grab()
-        # image_capture_timer.stop()
-        
-        if frame is None:
-            time.sleep(1)
-            continue
-        
-        resizing_timer.start()
-        annotated_frame = iu.resize(frame, max_width=640)
-        object_detection_frame = iu.resize(annotated_frame, max_width=200)
-        resizing_timer.stop()
-        
-        od_inference_timer.start()
-        position_iq = gl.ask_ml(POSITION_DETECTOR, object_detection_frame)
-        od_inference_timer.stop()
-        
-        
-        # display_timer.start()
-        rois = [] if position_iq.rois is None else position_iq.rois
-        for roi in rois:
-            bbox = roi.geometry
-            
-            is_fully_onscreen = ou.is_fully_onscreen(bbox)
-            color = (0, 0, 0) if is_fully_onscreen else (255, 255, 255)
-            
-            if is_fully_onscreen:
-                cropped_frame = iu.crop_from_image_query(frame, bbox)
-                # defect_iq = gl.ask_ml(BINARY_DEFECT_DETECTOR, cropped_frame)
-                
-            #     answer = defect_iq.result.label.value
-            #     confidence = defect_iq.result.confidence
-            #     if confidence > BINARY_DEFECT_DETECTOR.confidence_threshold:
-            #         if answer == "YES":
-            #             color = (0, 255, 0)
-            #         elif answer == "NO":
-            #             color = (0, 0, 255)
-            #         else:
-            #             color = (0, 255, 255)
-            #     else:
-            #         color = (0, 255, 255)
-            
-            iu.draw_bbox(annotated_frame, bbox, color)
-        # if cropped_frame is not None: 
-        #     web_server.show_image(cropped_frame)
-        # else:
-        #     web_server.show_image(annotated_frame)
-            
-        web_server.show_image(annotated_frame)
-        # display_timer.stop()
-        
-        main_loop_manager.wait()
-        # main_loop_timer.stop()
+    frame_small = iu.resize(frame, max_width=640)
+    imgcat(frame_small)
+    print('-' * 50)
+    
+    if user_input == 'c':
+        continue
 
-if __name__ == "__main__":
-    main()
+    print(f'Scanning for lids...')
+    # Scale down to a reasonable size for the object detector
+    position_detector_frame = iu.resize(frame, max_width=200)
+    print(f'position_detector_frame: {position_detector_frame.shape}')
+    position_iq = gl.ask_ml(POSITION_DETECTOR, position_detector_frame)
+    
+    if not position_iq.rois:
+        print('No lids detected in this frame.')
+        continue
+    
+    for roi in position_iq.rois:
+        bbox = roi.geometry
+        is_fully_onscreen = ou.is_fully_onscreen(bbox)
+        
+        color = (0, 255, 0) if is_fully_onscreen else (255, 0, 0)
+
+        cropped_frame = iu.crop_from_image_query(frame, bbox)
+        cropped_frame_small = iu.resize(cropped_frame, max_width=640)
+        
+        annotated_frame = iu.draw_bbox(frame, bbox, color)
+        annotated_frame_small = iu.resize(annotated_frame, max_width=640)
+        
+        web_server.show_image(annotated_frame_small)
+        imgcat(annotated_frame_small)
+        print('-' * 50)
+        
+        if is_fully_onscreen:
+            detect_iq = gl.ask_ml(BINARY_DEFECT_DETECTOR, cropped_frame)
+            
+            answer = detect_iq.result.label.value
+            confidence = detect_iq.result.confidence
+            confidence_percentage = math.floor(confidence * 100)
+            print(f'Cropped image size: {cropped_frame.shape}')
+            print(f'Defect result: {answer} | confidence: {confidence_percentage}%')
+            imgcat(cropped_frame_small)
+            print('-' * 50)
+        else:
+            print('This lid is not fully onscreen. Cannot detect defects.')
+
+print('Demo finished.')
+grabber.release()
