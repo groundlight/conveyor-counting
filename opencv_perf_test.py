@@ -4,8 +4,8 @@ import time
 from imgcat import imgcat
 
 ITERATIONS = 100
-WIDTH = 1920 # 3840
-HEIGHT = 1080 # 2160
+WIDTH = 3840
+HEIGHT = 2160
 
 print(framegrab.__version__)
 

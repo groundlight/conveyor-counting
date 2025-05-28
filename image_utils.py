@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-def crop_image_to_bbox(frame: np.ndarray, bbox) -> np.ndarray:
+def crop_from_image_query(frame: np.ndarray, bbox) -> np.ndarray:
     """Crops the image using the bounding box from the first ROI in a Groundlight ImageQuery."""
 
     left, top, right, bottom = bbox.left, bbox.top, bbox.right, bbox.bottom
@@ -21,7 +21,7 @@ def crop_image_to_bbox(frame: np.ndarray, bbox) -> np.ndarray:
 
 def draw_bbox(frame: np.ndarray, bbox, color: tuple) -> None:
     """Draws the bounding box from the first ROI in a Groundlight ImageQuery onto the frame."""
-    
+
     left, top, right, bottom = bbox.left, bbox.top, bbox.right, bbox.bottom
 
     # Get image dimensions

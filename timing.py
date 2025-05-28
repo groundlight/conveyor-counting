@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 class PerfTimer:
     def __init__(self, name: str, debug_only: bool = True):
         self._debug_only = debug_only
+        print(self._logger_active())
         if self._logger_active():
             self._name = name
             self._last_logged_time = 0.0

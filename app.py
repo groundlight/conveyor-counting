@@ -51,8 +51,8 @@ def main() -> None:
 
     options = {
             "resolution": {
-                "width": 1920, # 3840,
-                "height": 1080, # 2160,
+                "width": 3840,
+                "height": 2160,
             },
             "crop": {
                 "relative": {
@@ -75,9 +75,9 @@ def main() -> None:
     web_server = FrameGrabWebServer('Lid Detector')
     
     # image_capture_timer = PerfTimer('Image Capture')
+    resizing_timer = PerfTimer('Resizing', False)
     # display_timer = PerfTimer('Display')
     od_inference_timer = PerfTimer('Object Detection Inference', False)
-    binary_inference_timer = PerfTimer('Binary Inference', False)
     # main_loop_timer = PerfTimer('Main Loop')
 
     main_loop_manager = LoopManager('Main Loop', loop_time=MAIN_LOOP_TIME)
@@ -88,19 +88,22 @@ def main() -> None:
         main_loop_manager.start()
         
         # image_capture_timer.start()
-        frames = grabber.grab()
+        frame = grabber.grab()
         # image_capture_timer.stop()
         
-        if frames is None:
+        if frame is None:
             time.sleep(1)
             continue
         
-        annotated_frame = frames['annotated']
-        object_detection_frame = frames['object_detection']
+        resizing_timer.start()
+        annotated_frame = iu.resize(frame, max_width=640)
+        object_detection_frame = iu.resize(annotated_frame, max_width=200)
+        resizing_timer.stop()
         
         od_inference_timer.start()
         position_iq = gl.ask_ml(POSITION_DETECTOR, object_detection_frame)
         od_inference_timer.stop()
+        
         
         # display_timer.start()
         rois = [] if position_iq.rois is None else position_iq.rois
@@ -111,27 +114,27 @@ def main() -> None:
             color = (0, 0, 0) if is_fully_onscreen else (255, 255, 255)
             
             if is_fully_onscreen:
-                original_frame = frames['original']
-                cropped_frame = iu.crop_image_to_bbox(original_frame, bbox)
+                cropped_frame = iu.crop_from_image_query(frame, bbox)
+                # defect_iq = gl.ask_ml(BINARY_DEFECT_DETECTOR, cropped_frame)
                 
-                binary_inference_timer.start()
-                defect_iq = gl.ask_ml(BINARY_DEFECT_DETECTOR, cropped_frame)
-                binary_inference_timer.stop()
-                
-                answer = defect_iq.result.label.value
-                confidence = defect_iq.result.confidence
-                if confidence > BINARY_DEFECT_DETECTOR.confidence_threshold:
-                    if answer == "YES":
-                        color = (0, 255, 0)
-                    elif answer == "NO":
-                        color = (0, 0, 255)
-                    else:
-                        color = (0, 255, 255)
-                else:
-                    color = (0, 255, 255)
+            #     answer = defect_iq.result.label.value
+            #     confidence = defect_iq.result.confidence
+            #     if confidence > BINARY_DEFECT_DETECTOR.confidence_threshold:
+            #         if answer == "YES":
+            #             color = (0, 255, 0)
+            #         elif answer == "NO":
+            #             color = (0, 0, 255)
+            #         else:
+            #             color = (0, 255, 255)
+            #     else:
+            #         color = (0, 255, 255)
             
             iu.draw_bbox(annotated_frame, bbox, color)
-
+        # if cropped_frame is not None: 
+        #     web_server.show_image(cropped_frame)
+        # else:
+        #     web_server.show_image(annotated_frame)
+            
         web_server.show_image(annotated_frame)
         # display_timer.stop()
         
