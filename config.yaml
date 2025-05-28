@@ -7,6 +7,6 @@ image_sources:
     input_type: generic_usb
     options:
       resolution:
-        width: 1902 # 3840
+        width: 1920 # 3840
         height: 1080 # 2160
       num_90_deg_rotations: 2
