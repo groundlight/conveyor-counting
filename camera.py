@@ -16,9 +16,6 @@ logger = logging.getLogger(__name__)
 
 class ThreadedVideoWriter:
     def __init__(self, name: str, resolution: tuple, fps: int) -> None:
-        """
-        Records video in a separate thread to improve performance.
-        """
         self.name = name
         self.resolution = resolution
         self.fps = fps
@@ -69,9 +66,6 @@ class ThreadedVideoWriter:
         
 class ThreadedFrameGrabber:
     def __init__(self, grabber: FrameGrabber, fps: int = 10) -> None:
-        """
-        A wrapper around framegrab.FrameGrabber that improves performance while streaming video
-        """
         self._setup_camera(grabber)
         self._grabber = grabber
         self._frames: dict[str, np.ndarray] = None
@@ -95,13 +89,13 @@ class ThreadedFrameGrabber:
         grabber.capture.set(cv2.CAP_PROP_FOURCC, fourcc)
         
         fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"Original camera frame rate for {grabber.config.name}: {fps} FPS")
+        logger.info(f"Original camera frame rate for {grabber.config['name']}: {fps} FPS")
         
         desired_fps = 30
         grabber.capture.set(cv2.CAP_PROP_FPS, desired_fps)
         
         new_fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"New camera frame rate for {grabber.config.name}: {new_fps} FPS")
+        logger.info(f"New camera frame rate for {grabber.config['name']}: {new_fps} FPS")
     
     def _start(self) -> None:
         def thread() -> None:
@@ -125,12 +119,12 @@ class ThreadedFrameGrabber:
         
     def _resize_in_thread(self, frame: np.ndarray, timestamp: float) -> None:
         def thread() -> None:
-            object_detection_frame = iu.resize(frame, max_width=200)
+            object_detection = iu.resize(frame, max_width=200)
             
             self._frames = {
                 'original': frame,
                 'annotated': frame.copy(),
-                'object_detection': object_detection_frame,
+                'object_detection': object_detection,
             }
             self.timestamp = timestamp
                 
