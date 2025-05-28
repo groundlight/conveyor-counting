@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Conveyor Counting
 
 A sample application that uses the Groundlight Edge Endpoint to count objects as they move across a conveyor belt. 
@@ -44,3 +45,6 @@ You can submit single images to Groundlight by running the app in SNAPSHOT_INFER
 When you are ready to perform inference on live video, run: `python app.py --app-mode VIDEO_INFERENCE`
 
 To see other options, run: `python app.py --help`
+=======
+# defect-detection
+>>>>>>> parent of d4fce32 (updating readme)
