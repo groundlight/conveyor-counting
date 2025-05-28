@@ -127,7 +127,7 @@ class ObjectTracker:
     counter = 0 # counts the instances of unique objects the Object Tracker has seen.
     def __init__(self, expected_x_velocity: float = 0.0, expected_y_velocity: float = 0.0) -> None:
         """
-        Tracks objects across frames based on the 
+        Tracks objects across frames
         """
         self.EXPECTED_X_VELOCITY = expected_x_velocity
         self.EXPECTED_Y_VELOCITY = expected_y_velocity

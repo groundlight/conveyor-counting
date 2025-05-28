@@ -14,7 +14,7 @@ class FrameGrabWebServer:
                  width: int = 1280):
         """
         A simple Flask webserver that can render images in a browser. 
-        Useful for viewing video streams on remote devices. 
+        Useful for viewing video streams from remote devices. 
         """
         self.name = name
         self.host = host
