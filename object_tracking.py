@@ -1,5 +1,5 @@
 import math
-from model import ROI # this is coming from the groundlight module, although it's not in that namespace
+from model import ROI
 import cv2
 import numpy as np
 from groundlight import ImageQuery
@@ -28,7 +28,7 @@ class TrackedObject:
         
         self.idx = ObjectTracker.counter; ObjectTracker.counter += 1
         
-        # Make a strong assumption that the objects will move in a constant, known direction (this is a conveyor belt after all)
+        # Make a strong assumption that the objects will move in a constant, known direction (this works fine on a conveyor belt)
         self.EXPECTED_X_VELOCITY = expected_x_velocity
         self.EXPECTED_Y_VELOCITY = expected_y_velocity
         
@@ -94,7 +94,7 @@ class TrackedObject:
         if dt < 0:
             return None  # Future timestamp? Skip
 
-        # Estimated position using constant velocity
+        # Estimate position using constant velocity
         estimated_x = previous_bbox.x + self.EXPECTED_X_VELOCITY * dt
         estimated_y = previous_bbox.y + self.EXPECTED_Y_VELOCITY * dt
 
@@ -124,8 +124,11 @@ class TrackedObject:
 
         
 class ObjectTracker:
-    counter = 0
+    counter = 0 # counts the instances of unique objects the Object Tracker has seen.
     def __init__(self, expected_x_velocity: float = 0.0, expected_y_velocity: float = 0.0) -> None:
+        """
+        Tracks objects across frames based on the 
+        """
         self.EXPECTED_X_VELOCITY = expected_x_velocity
         self.EXPECTED_Y_VELOCITY = expected_y_velocity
         
@@ -139,7 +142,7 @@ class ObjectTracker:
         self.object_count = 0
         
     def add_rois(self, rois: list[ROI], timestamp: float) -> None:
-        # Initialize all the objects as missinng, we'll mark them as not missing if/when we find them
+        # Initialize all the objects as missing, we'll mark them as not missing if/when we find them
         for tracked_object in self.tracked_objects:
             tracked_object.is_missing = True
         
@@ -214,22 +217,22 @@ class ObjectTracker:
             x2 = int(bbox.right * width)
             y2 = int(bbox.bottom * height)
             
-            # # Draw the previous bounding box
-            # white = (255, 255, 255)
-            # previous_roi = tracked_object.previous_roi()
-            # if previous_roi is not None:
-            #     previous_bbox = previous_roi.geometry
-            #     x1_prev = int(previous_bbox.left * width)
-            #     y1_prev = int(previous_bbox.top * height)
-            #     x2_prev = int(previous_bbox.right * width)
-            #     y2_prev = int(previous_bbox.bottom * height)
+            # Draw the previous bounding box
+            white = (255, 255, 255)
+            previous_roi = tracked_object.previous_roi()
+            if previous_roi is not None:
+                previous_bbox = previous_roi.geometry
+                x1_prev = int(previous_bbox.left * width)
+                y1_prev = int(previous_bbox.top * height)
+                x2_prev = int(previous_bbox.right * width)
+                y2_prev = int(previous_bbox.bottom * height)
 
-            #     cv2.rectangle(frame, (x1_prev, y1_prev), (x2_prev, y2_prev), white, 1)
+                cv2.rectangle(frame, (x1_prev, y1_prev), (x2_prev, y2_prev), white, 1)
 
-            #     cv2.line(frame, (x1_prev, y1_prev), (x1, y1), white, 1)  # Top-left
-            #     cv2.line(frame, (x2_prev, y1_prev), (x2, y1), white, 1)  # Top-right
-            #     cv2.line(frame, (x1_prev, y2_prev), (x1, y2), white, 1)  # Bottom-left
-            #     cv2.line(frame, (x2_prev, y2_prev), (x2, y2), white, 1)  # Bottom-right
+                cv2.line(frame, (x1_prev, y1_prev), (x1, y1), white, 1)  # Top-left
+                cv2.line(frame, (x2_prev, y1_prev), (x2, y1), white, 1)  # Top-right
+                cv2.line(frame, (x1_prev, y2_prev), (x1, y2), white, 1)  # Bottom-left
+                cv2.line(frame, (x2_prev, y2_prev), (x2, y2), white, 1)  # Bottom-right
                 
             if tracked_object.needs_purging():
                 color = (0, 0, 0)
@@ -255,30 +258,3 @@ class ObjectTracker:
         self.add_rois(rois, timestamp)
         self.annotate_frame(annotated_frame)
         self.purge_missing_objects()
-        
-    def classify(self, frame: np.ndarray) -> None:
-        """ TODO Finish this WIP
-        
-        Multiple choice is not currently supported on edge, so will need to come back to this
-        """
-        
-        # In order make performance, perform no more than n classifications per interaction
-        max_classifications = 3
-        classifications = 0
-        for tracked_object in self.tracked_objects:
-            if tracked_object.gl_class is not None:
-                continue # do not classify if a valid class was already determined
-            
-            current_roi = tracked_object.current_roi()
-            current_bbox = current_roi.geometry
-            
-            # TODO crop to the object's position
-            
-            # TODO classify the object
-            
-            # Count the classification 
-            classifications += 1
-            if classifications == max_classifications:
-                return
-            
-            

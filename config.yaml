@@ -9,5 +9,4 @@ image_sources:
       resolution:
         width: 1902 # 3840
         height: 1080 # 2160
-      is_video: true # necessary to keep the frame rate high, depends on https://github.com/groundlight/framegrab/tree/tim/buffer
       num_90_deg_rotations: 2

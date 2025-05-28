@@ -80,6 +80,7 @@ def main() -> None:
 
     # Connect to the camera and create a threaded framegrabber so we can capture frames more efficiently
     blocking_grabber = framegrab.FrameGrabber.from_yaml(yaml_path)[0]
+    # blocking_grabber = framegrab.FrameGrabber.create_grabber({'input_type': 'generic_usb'})
     grabber = cam.ThreadedFrameGrabber(blocking_grabber, FPS)
 
     web_server = FrameGrabWebServer('Object Counter')
