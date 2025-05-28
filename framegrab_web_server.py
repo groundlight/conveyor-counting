@@ -3,7 +3,6 @@ import threading
 import io
 import cv2
 import logging
-import numpy as np
 
 class FrameGrabWebServer:
     def __init__(self, 
@@ -12,10 +11,6 @@ class FrameGrabWebServer:
                  port: int = 5000, 
                  refresh_interval: int = 100, 
                  width: int = 1280):
-        """
-        A simple Flask webserver that can render images in a browser. 
-        Useful for viewing video streams on remote devices. 
-        """
         self.name = name
         self.host = host
         self.port = port
@@ -31,7 +26,7 @@ class FrameGrabWebServer:
         threading.Thread(target=self._run, daemon=True).start()
         print(f"FrameGrab web server running at http://{self.host}:{self.port}")
 
-    def _setup_routes(self) -> None:
+    def _setup_routes(self):
         TEMPLATE = f'''
         <html>
           <head><title>{self.name}</title></head>
@@ -57,9 +52,9 @@ class FrameGrabWebServer:
                 return 'No image available', 404
             return send_file(io.BytesIO(self.image_bytes), mimetype='image/jpeg')
 
-    def _run(self) -> None:
+    def _run(self):
         self.app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
 
-    def show_image(self, frame: np.ndarray) -> None:
+    def show_image(self, frame):
         _, jpeg = cv2.imencode('.jpg', frame)
         self.image_bytes = jpeg.tobytes()
