@@ -39,8 +39,6 @@ class TrackedObject:
         
         self._needs_purging = False
         
-        self.is_missing = False
-        
         self.gl_class = None
         
         self.add_observation(*self.first_observation)
@@ -129,7 +127,7 @@ class ObjectTracker:
         self.EXPECTED_X_VELOCITY = expected_x_velocity
         self.EXPECTED_Y_VELOCITY = expected_y_velocity
         
-        self.MIN_DISTANCE_TRAVELED_THRESH = 0.5
+        self.MIN_DISTANCE_TRAVELED_THRESH = 0.75
         
         self.DISTANCE_MATCHING_THRESH = 0.1 # normalized screen units
         self.MAX_TIME_SINCE_LAST_SEEN = 0.5 
@@ -139,11 +137,6 @@ class ObjectTracker:
         self.object_count = 0
         
     def add_rois(self, rois: list[ROI], timestamp: float) -> None:
-        # Initialize all the objects as missinng, we'll mark them as not missing if/when we find them
-        for tracked_object in self.tracked_objects:
-            tracked_object.is_missing = True
-        
-        # Attempt to match each ROI with a previously tracked object
         for roi in rois:
             bbox = roi.geometry
             
@@ -158,13 +151,12 @@ class ObjectTracker:
                 
                 if distance < self.DISTANCE_MATCHING_THRESH:
                     tracked_object.add_observation(roi, timestamp)
-                    tracked_object.is_missing = False
                     break
-            # If the current ROI can't be matched to any previously tracked object, create a new tracked object
             else:
                 tracked_object = TrackedObject(roi, timestamp, self.EXPECTED_X_VELOCITY, self.EXPECTED_Y_VELOCITY)
                 self.tracked_objects.append(tracked_object)
-
+            
+        
         # Check for objects that needs to be purged (have been missing too long)
         for tracked_object in self.tracked_objects:
             time_since_last_seen = tracked_object.time_since_last_seen(timestamp)
@@ -214,30 +206,28 @@ class ObjectTracker:
             x2 = int(bbox.right * width)
             y2 = int(bbox.bottom * height)
             
-            # # Draw the previous bounding box
-            # white = (255, 255, 255)
-            # previous_roi = tracked_object.previous_roi()
-            # if previous_roi is not None:
-            #     previous_bbox = previous_roi.geometry
-            #     x1_prev = int(previous_bbox.left * width)
-            #     y1_prev = int(previous_bbox.top * height)
-            #     x2_prev = int(previous_bbox.right * width)
-            #     y2_prev = int(previous_bbox.bottom * height)
+            # Draw the previous bounding box
+            white = (255, 255, 255)
+            previous_roi = tracked_object.previous_roi()
+            if previous_roi is not None:
+                previous_bbox = previous_roi.geometry
+                x1_prev = int(previous_bbox.left * width)
+                y1_prev = int(previous_bbox.top * height)
+                x2_prev = int(previous_bbox.right * width)
+                y2_prev = int(previous_bbox.bottom * height)
 
-            #     cv2.rectangle(frame, (x1_prev, y1_prev), (x2_prev, y2_prev), white, 1)
+                cv2.rectangle(frame, (x1_prev, y1_prev), (x2_prev, y2_prev), white, 1)
 
-            #     cv2.line(frame, (x1_prev, y1_prev), (x1, y1), white, 1)  # Top-left
-            #     cv2.line(frame, (x2_prev, y1_prev), (x2, y1), white, 1)  # Top-right
-            #     cv2.line(frame, (x1_prev, y2_prev), (x1, y2), white, 1)  # Bottom-left
-            #     cv2.line(frame, (x2_prev, y2_prev), (x2, y2), white, 1)  # Bottom-right
+                cv2.line(frame, (x1_prev, y1_prev), (x1, y1), white, 1)  # Top-left
+                cv2.line(frame, (x2_prev, y1_prev), (x2, y1), white, 1)  # Top-right
+                cv2.line(frame, (x1_prev, y2_prev), (x1, y2), white, 1)  # Bottom-left
+                cv2.line(frame, (x2_prev, y2_prev), (x2, y2), white, 1)  # Bottom-right
                 
             if tracked_object.needs_purging():
                 color = (0, 0, 0)
                 
                 cv2.line(frame, (x1, y1), (x2, y2), color, thickness)
                 cv2.line(frame, (x1, y2), (x2, y1), color, thickness)
-            elif tracked_object.is_missing:
-                color = (0, 0, 0)
             else:
                 color = (0, 255, 0)
             

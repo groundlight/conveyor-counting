@@ -5,17 +5,11 @@ import cv2
 import logging
 
 class FrameGrabWebServer:
-    def __init__(self, 
-                 name: str = "FrameGrab Image Viewer", 
-                 host:str = "0.0.0.0", 
-                 port: int = 5000, 
-                 refresh_interval: int = 100, 
-                 width: int = 1280):
+    def __init__(self, name: str = "FrameGrab Image Viewer", host="0.0.0.0", port=5000, refresh_interval=100):
         self.name = name
         self.host = host
         self.port = port
         self.refresh_interval = refresh_interval
-        self.width = width
         self.image_bytes = None
         
         logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -32,7 +26,7 @@ class FrameGrabWebServer:
           <head><title>{self.name}</title></head>
           <link rel="icon" type="image/x-icon" href="/static/groundlight_favicon.ico">
           <body>
-            <img src="/image" width="{self.width}">
+            <img src="/image" width="640">
             <script>
               setInterval(() => {{
                 document.querySelector("img").src = "/image?" + new Date().getTime();
