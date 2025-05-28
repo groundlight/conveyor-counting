@@ -47,7 +47,7 @@ class LoopManager:
     def start(self) -> None:
         self._start_time = time.perf_counter()
         
-    def wait(self) -> bool:
+    def wait(self) -> None:
         stop_time = time.perf_counter()
         elapsed_time = stop_time - self._start_time
         actual_fps = 1.0 / elapsed_time if elapsed_time > 0 else float('inf')
@@ -57,12 +57,11 @@ class LoopManager:
         if remaining_time_to_wait > 0.0:
             time.sleep(remaining_time_to_wait)
         else:
-            time.sleep(.01) # avoid hogging the CPU
             fps_diff = -(actual_fps - self._target_fps)
             logger.warning(
                 f'{self._loop_name} fell behind. '
                 f'Target: {self._loop_time:.4f}s ({self._target_fps:.1f} FPS) | '
                 f'Actual: {elapsed_time:.4f}s ({actual_fps:.1f} FPS) | '
                 f'Diff: {-remaining_time_to_wait:.4f}s ({fps_diff:.1f} FPS)'
-                )
+            )
             

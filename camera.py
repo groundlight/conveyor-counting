@@ -10,11 +10,14 @@ from threading import Thread
 
 from timing import LoopManager
 
+FPS = 4
+CAMERA_LOOP_TIME = 1 / FPS
+
 logger = logging.getLogger(__name__)
     
 class ThreadedFrameGrabber:
     def __init__(self, grabber: FrameGrabber, fps: int = 10) -> None:
-        self._setup_camera(grabber)
+        # self._setup_camera(grabber)
         self._grabber = grabber
         self._frames: dict[str, np.ndarray] = None
         
@@ -47,7 +50,7 @@ class ThreadedFrameGrabber:
     
     def _start(self) -> None:
         def thread() -> None:
-            camera_loop = LoopManager('Camera Loop', self._wait_time)
+            camera_loop = LoopManager('Camera Loop', CAMERA_LOOP_TIME)
             self._running = True
             while self._running:
                 camera_loop.start()
