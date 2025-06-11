@@ -1,8 +1,12 @@
 # Conveyor Counting
 
-A sample application that uses the Groundlight Edge Endpoint to count objects as they move across a conveyor belt. 
+A sample application that counts objects as they move across a conveyor belt. 
 
-<img src="assets/items_on_conveyor.png" alt="Items on Conveyor" width="400">
+This application is designed to count a single type of object. 
+
+A business-level Groundlight account is necessary to run this application. For more information, reach out to us at support@groundlight.ai.
+
+<img src="assets/conveyor_counting.webp" alt="Items on Conveyor" width="400">
 
 ## App Setup
 1. Clone this repo
