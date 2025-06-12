@@ -4,7 +4,7 @@ A sample application that counts objects as they move across a conveyor belt.
 
 This application is designed to count a single type of object. 
 
-A business-level Groundlight account is necessary to run this application. To access a free trial, reach out to us at support@groundlight.ai
+A business-level Groundlight account is necessary to run this application. To access a free trial, reach out to us at support@groundlight.ai.
 
 <img src="assets/conveyor_counting.webp" alt="Items on Conveyor" width="400">
 
