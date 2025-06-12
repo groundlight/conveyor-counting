@@ -1,0 +1,12 @@
+fps: 5
+detector_ids:
+  counting: "det_"
+image_sources:
+  - id:
+      serial_number: abc123
+    input_type: generic_usb
+    options:
+      resolution:
+        width: 1920 # 3840
+        height: 1080 # 2160
+      num_90_deg_rotations: 2
