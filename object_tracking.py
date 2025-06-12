@@ -175,6 +175,24 @@ class ObjectTracker:
                 tracked_object.mark_for_purging()
     
     def purge_missing_objects(self) -> None:
+        """
+        Remove tracked objects that have been marked for purging and update the object count.
+        
+        This method performs cleanup by:
+        1. Removing tracked objects that have been missing for too long (marked for purging)
+        2. Incrementing the total object count for objects that traveled sufficient distance
+        before being purged (indicating they were legitimate objects that completed
+        their journey across the tracking area)
+        
+        Only objects that traveled more than MIN_DISTANCE_TRAVELED_THRESH are counted
+        toward the final object count, filtering out noise, false detections, or objects
+        that were only briefly visible.
+        
+        This method should be called after add_rois() to clean up stale tracking data
+        and maintain accurate object counts for conveyor belt or similar applications
+        where
+        """
+        
         tracked_objects = []
         for tracked_object in self.tracked_objects:
             if not tracked_object.needs_purging():

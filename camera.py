@@ -7,7 +7,7 @@ import os
 
 import image_utils as iu
 
-from threading import Thread
+from threading import Thread, Lock
 from queue import Queue, Full, Empty
 
 from timing import LoopManager
@@ -36,7 +36,7 @@ class ThreadedVideoWriter:
         )
         self.run = False
         
-        self.thread = Thread(target=self._run_loop, daemon=True)
+        self.thread = Thread(target=self._run_loop)
 
         self.start()
 
@@ -80,10 +80,13 @@ class ThreadedFrameGrabber:
         
         self.timestamp = 0.0
         
+        self._frame_lock = Lock()
+        
         self._start()
         
     def grab(self) -> tuple[dict[str, np.ndarray], float]:
-        return self._frames, self.timestamp
+        with self._frame_lock:
+            return self._frames, self.timestamp
     
     def _setup_camera(self, grabber: FrameGrabber) -> None:
         """
@@ -94,14 +97,14 @@ class ThreadedFrameGrabber:
         fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G') 
         grabber.capture.set(cv2.CAP_PROP_FOURCC, fourcc)
         
-        fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"Original camera frame rate for {grabber.config.name}: {fps} FPS")
-        
-        desired_fps = 30
+        desired_fps = 300
         grabber.capture.set(cv2.CAP_PROP_FPS, desired_fps)
-        
         new_fps = grabber.capture.get(cv2.CAP_PROP_FPS)
-        logger.info(f"New camera frame rate for {grabber.config.name}: {new_fps} FPS")
+        
+        if desired_fps == new_fps:
+            logger.info(f'FPS successfully set to {new_fps} for {grabber.config.name}')
+        else:
+            logger.error(f'Failed to set FPS to desired FPS of {desired_fps}. Current FPS is {new_fps}')
     
     def _start(self) -> None:
         def thread() -> None:
@@ -119,27 +122,27 @@ class ThreadedFrameGrabber:
                 
             self._grabber.release()
         
-        t = Thread(target=thread)
-        t.daemon = True
+        t = Thread(target=thread, daemon=True)
         t.start()
         
     def _resize_in_thread(self, frame: np.ndarray, timestamp: float) -> None:
         def thread() -> None:
             object_detection_frame = iu.resize(frame, max_width=200)
             
-            self._frames = {
-                'original': frame,
-                'annotated': frame.copy(),
-                'object_detection': object_detection_frame,
-            }
-            self.timestamp = timestamp
+            with self._frame_lock:
+                self._frames = {
+                    'original': frame,
+                    'annotated': frame.copy(),
+                    'object_detection': object_detection_frame,
+                }
+                self.timestamp = timestamp
                 
-        t = Thread(target=thread)
-        t.daemon = True
+        t = Thread(target=thread, daemon=True)
         t.start()
     
     def release(self) -> None:
         self._running = False
+        
         
     
         

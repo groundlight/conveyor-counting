@@ -42,9 +42,14 @@ Position your camera above the conveyor belt such that the objects will move fro
 Check your camera setup by running the app in video only mode: `python app.py --app-mode VIDEO_ONLY`. The app launches a webserver for viewing the camera feed. Check the terminal output for the URL, and then open that URL in your browser. 
 
 ## Training
-You can submit single images to Groundlight by running the app in SNAPSHOT_INFERENCE mode: `python app.py --app-mode SNAPSHOT_INFERENCE`. Press the enter key in your terminal to take a new picture and perform inference. This is good for training a new detector. This step is optional but encouraged. 
+You can submit training images to Groundlight by running the app in SNAPSHOT_INFERENCE mode: `python app.py --app-mode SNAPSHOT_INFERENCE`. 
+
+Press the enter key in your terminal to submit images.
+
+Make sure you submit several diverse training images to Groundlight before running your application in production. Usually several dozen images is enough, but this can vary depending on your application.
 
 ## Run in Production
 When you are ready to perform inference on live video, run: `python app.py --app-mode VIDEO_INFERENCE`
 
+## Other Options
 To see other options, run: `python app.py --help`
