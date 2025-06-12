@@ -142,6 +142,33 @@ class ObjectTracker:
         self.object_count = 0
         
     def add_rois(self, rois: list[ROI], timestamp: float) -> None:
+        """
+        Incorporate a list of detected ROIs into the tracker for the current frame.
+
+        This method attempts to match each new ROI to an existing tracked object
+        based on estimated position and a distance threshold. If a match is found,
+        the object is updated with the new observation. If no match is found, a new
+        tracked object is created.
+
+        For each frame:
+        - All existing objects are initially marked as "missing"
+        - Each ROI is compared against existing objects to find a match based on
+        estimated position and `DISTANCE_MATCHING_THRESH`
+        - ROIs not matched to any existing object are treated as new objects
+        - Tracked objects not updated in this frame are considered "missing"
+        - Objects missing for longer than `MAX_TIME_SINCE_LAST_SEEN` are marked
+        for purging
+
+        Args:
+            rois (list[ROI]): List of detected regions of interest for the current frame.
+            timestamp (float): Timestamp associated with the current frame.
+
+        Notes:
+            - ROIs that are not fully on-screen are ignored
+            - Matching is based on Euclidean distance in normalized coordinates
+            - This method should be followed by `purge_missing_objects()` to remove
+            stale or completed tracks
+        """
         # Initialize all the objects as missing, we'll mark them as not missing if/when we find them
         for tracked_object in self.tracked_objects:
             tracked_object.is_missing = True
