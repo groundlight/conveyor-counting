@@ -1,4 +1,4 @@
-# Conveyor Counting
+# Real-Time Object Counting on Conveyor Belts with Groundlight's Computer Vision Tools
 
 A sample application that counts objects as they move across a conveyor belt. 
 
