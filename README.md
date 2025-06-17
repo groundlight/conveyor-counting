@@ -17,7 +17,7 @@ A business-level Groundlight account is necessary to run this application. To ac
 
 ## Obtain a Groundlight API Token
 
-Sign up at [dashboard.groundlight.ai](https://dashboard.groundlight.ai/reef/) and navigate to the API tokens page. 
+Sign up at [dashboard.groundlight.ai](https://groundlight.ai/signup) and navigate to the API tokens page. 
 
 
 <img src="assets/api_token.png" alt="API Token Page" width="400">
